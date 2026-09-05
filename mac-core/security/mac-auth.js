@@ -1,51 +1,39 @@
-/**
- * MAC / MAG System - File 1.1.1: mac-auth.js
- * Description: Strict owner-level email verification and access control for Mac.
- */
+const http = require('http');
 
-class MacAuthManager {
-    constructor(ownerEmail) {
-        // आपकी आधिकारिक ओनर ईमेल जिसे कोई दूसरा बायपास नहीं कर सकता
-        this.ownerEmail = ownerEmail || "aavesh.owner@macsystem.local"; 
-        this.activeSessions = new Map();
+class MacWebhookManager {
+    constructor(port = 8080) {
+        this.port = port;
+        this.secrets = {
+            paypalClientId: process.env.PAYPAL_CLIENT_ID || "",
+            paypalSecret: process.env.PAYPAL_SECRET || ""
+        };
     }
 
-    // ओनर की पहचान और ईमेल का मिलान करना
-    verifyOwnerIdentity(email, secretKey) {
-        if (email !== this.ownerEmail) {
-            console.warn(`[MAC AUTH SECURITY]: Blocked unauthorized attempt from -> ${email}`);
-            return { authorized: false, reason: "Invalid Owner Email" };
-        }
-
-        // यहाँ ओनर का सिक्योर लोकल पासकी/टोकन चेक किया जा रहा है
-        console.log(`[MAC AUTH SECURITY]: Identity verified successfully for Owner: ${email}`);
-        return { authorized: true, role: "ULTIMATE_OWNER" };
+    setSecret(key, value) {
+        this.secrets[key] = value;
+        console.log(`[SECURITY]: Secret ${key} securely updated.`);
     }
 
-    // ओनर के लिए एक्सक्लूसिव सेशन टोकन बनाना
-    generateOwnerSession(email, secretKey) {
-        const authCheck = this.verifyOwnerIdentity(email, secretKey);
-        
-        if (!authCheck.authorized) {
-            throw new Error("Access Denied: You are not the Mac Owner.");
-        }
-
-        const sessionToken = `MAC_SESSION_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-        this.activeSessions.set(sessionToken, {
-            email: email,
-            role: authCheck.role,
-            loginTime: Date.now()
+    startListener() {
+        const server = http.createServer((req, res) => {
+            if (req.method === 'POST' && req.url === '/webhook/paypal') {
+                let body = '';
+                req.on('data', chunk => { body += chunk; });
+                req.on('end', () => {
+                    console.log(`[WEBHOOK RECEIVED]: Payment event captured!`, JSON.parse(body || '{}'));
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: "success", message: "Payment processed by MacUltra" }));
+                });
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('MacUltra Secure Endpoint Active');
+            }
         });
 
-        console.log(`[MAC AUTH]: New secure owner session generated.`);
-        return sessionToken;
-    }
-
-    // सेशन वैलिडेट करना
-    validateSession(token) {
-        return this.activeSessions.has(token);
+        server.listen(this.port, () => {
+            console.log(`[MAC WEBHOOK]: Secure payment listener running on port ${this.port}`);
+        });
     }
 }
 
-module.exports = MacAuthManager;
-
+module.exports = MacWebhookManager;
