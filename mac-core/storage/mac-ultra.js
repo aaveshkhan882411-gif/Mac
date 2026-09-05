@@ -1,56 +1,60 @@
-/**
- * MAC / MAG System - File 1.1.2 (storage/mac-ultra.js)
- * Description: Ultra logical units for zero-server state and data management.
- */
+const fs = require('fs');
+const path = require('path');
 
-class UltraLogicalUnit {
-    constructor(ultraId, appName) {
-        this.ultraId = ultraId;          // जैसे: ULTRA_1_CORE
-        this.appName = appName;
-        this.stateContainer = new Map(); // बिना रैम/डेटाबेस ओवरहेड के इंटरनल स्टेट स्टोरेज
-        this.createdAt = Date.now();
+class UltraDatabase {
+    constructor(baseDir = './mac-storage') {
+        this.baseDir = path.resolve(baseDir);
+        if (!fs.existsSync(this.baseDir)) {
+            fs.mkdirSync(this.baseDir, { recursive: true });
+        }
+        this.maxItemsPerUltra = 1000; // हर अल्ट्रा यूनिट की लिमिट
     }
 
-    // डेटा को सुरक्षित रूप से स्टोर करना
-    setUltraState(key, value) {
-        this.stateContainer.set(key, {
-            payload: value,
-            lastUpdated: Date.now()
-        });
-        console.log(`[MAC ULTRA (${this.ultraId})]: State updated for key -> [${key}]`);
-        return true;
+    getCurrentUltraFile() {
+        const files = fs.readdirSync(this.baseDir).filter(f => f.startsWith('ultra-') && f.endsWith('.json'));
+        files.sort();
+        if (files.length === 0) {
+            return path.join(this.baseDir, 'ultra-1.json');
+        }
+        return path.join(this.baseDir, files[files.length - 1]);
     }
 
-    // स्टोर किया हुआ डेटा निकालना
-    getUltraState(key) {
-        if (this.stateContainer.has(key)) {
-            return this.stateContainer.get(key).payload;
+    saveData(key, value) {
+        let currentFile = this.getCurrentUltraFile();
+        let data = {};
+
+        if (fs.existsSync(currentFile)) {
+            data = JSON.parse(fs.readFileSync(currentFile, 'utf8'));
+        }
+
+        const keys = Object.keys(data);
+        if (keys.length >= this.maxItemsPerUltra) {
+            // लिमिट पूरी होने पर नया अल्ट्रा बनाओ (जैसे Ultra-2, Ultra-3)
+            const fileNumber = parseInt(path.basename(currentFile).replace('ultra-', '').replace('.json', '')) + 1;
+            currentFile = path.join(this.baseDir, `ultra-${fileNumber}.json`);
+            data = {};
+        }
+
+        data[key] = {
+            value: value,
+            timestamp: new Date().toISOString()
+        };
+
+        fs.writeFileSync(currentFile, JSON.stringify(data, null, 2));
+        console.log(`[ULTRA DB]: Data saved successfully to ${path.basename(currentFile)}`);
+    }
+
+    getData(key) {
+        const files = fs.readdirSync(this.baseDir).filter(f => f.startsWith('ultra-') && f.endsWith('.json'));
+        for (const file of files) {
+            const filePath = path.join(this.baseDir, file);
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            if (data[key]) {
+                return data[key];
+            }
         }
         return null;
     }
 }
 
-class MacUltraManager {
-    constructor() {
-        this.activeUltras = new Map();
-        this.counter = 0;
-    }
-
-    // जरूरत के हिसाब से नया 'अल्ट्रा' यूनिट ऑटोमैटिक तैयार करना
-    spawnUltraUnit(appName) {
-        this.counter++;
-        const ultraId = `ULTRA_${this.counter}_${appName.toUpperCase()}`;
-        const newUltra = new UltraLogicalUnit(ultraId, appName);
-        
-        this.activeUltras.set(ultraId, newUltra);
-        console.log(`[MAC STORAGE]: Successfully spawned new Ultra Unit -> ${ultraId}`);
-        return newUltra;
-    }
-
-    getUltraUnit(ultraId) {
-        return this.activeUltras.get(ultraId) || null;
-    }
-}
-
-module.exports = MacUltraManager;
-
+module.exports = UltraDatabase;
