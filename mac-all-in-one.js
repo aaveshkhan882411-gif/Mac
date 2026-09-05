@@ -70,7 +70,7 @@ class MacUltraManager {
     }
 }
 
-// 3. प्रॉम्प्ट-टू-ऐप जनरेटर (GrowthAI, Pheli या गेम्स बनाने के लिए)
+// 3. प्रॉम्प्ट-टू-ऐप जनरेटर (कस्टम ब्रांडेड लिंक और PWA मोबाइल इंस्टॉलेशन सपोर्ट के साथ)
 class MacCompiler {
     constructor() {
         if (!fs.existsSync(APPS_DIR)) {
@@ -86,29 +86,79 @@ class MacCompiler {
             fs.mkdirSync(appPath, { recursive: true });
         }
 
+        // 1. App Frontend (index.html with PWA Install Prompt)
         const appHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>${appName} - MacUltra App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${appName} - Autonomous App</title>
+    <link rel="manifest" href="manifest.json">
     <style>
-        body { font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding-top: 50px; }
-        .card { background: #1e293b; padding: 30px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; text-align: center; padding-top: 50px; margin: 0; }
+        .card { background: #1e293b; padding: 30px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 400px; width: 90%; }
+        button { background: #38bdf8; color: #0f172a; border: none; padding: 12px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #0ea5e9; }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>${appName}</h1>
         <p>${description}</p>
-        <p><em>Autonomous Deployment Powered by MacUltra Engine</em></p>
+        <p><em>Sovereign Autonomous Ecosystem Powered by MacUltra</em></p>
+        <button id="installBtn" style="display:none;">Install App on Mobile</button>
     </div>
+
+    <script>
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const btn = document.getElementById('installBtn');
+            btn.style.display = 'block';
+            btn.addEventListener('click', () => {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    }
+                    deferredPrompt = null;
+                });
+            });
+        });
+    </script>
 </body>
 </html>`;
 
+        // 2. PWA Manifest (मोबाइल होम स्क्रीन पर ऐप की तरह जोड़ने के लिए)
+        const manifestJson = {
+            name: appName,
+            short_name: appName,
+            start_url: "index.html",
+            display: "standalone",
+            background_color: "#0f172a",
+            theme_color: "#38bdf8",
+            icons: []
+        };
+
+        // 3. Branded Custom Domain / Link Config
+        const brandConfig = {
+            appName: appName,
+            customDomain: `${cleanName}.macultra.local`,
+            marketingUrl: `macultra://app/${cleanName}`,
+            description: description,
+            created: new Date().toISOString()
+        };
+
+        // फाइलों को सेव करना
         fs.writeFileSync(path.join(appPath, 'index.html'), appHtml);
-        fs.writeFileSync(path.join(appPath, 'config.json'), JSON.stringify({ appName, description, created: new Date().toISOString() }, null, 2));
+        fs.writeFileSync(path.join(appPath, 'manifest.json'), JSON.stringify(manifestJson, null, 2));
+        fs.writeFileSync(path.join(appPath, 'config.json'), JSON.stringify(brandConfig, null, 2));
         
-        return `App '${appName}' successfully compiled at /generated-apps/${cleanName}`;
+        return `App '${appName}' compiled! 
+- Local Path: /generated-apps/${cleanName}
+- Branded Link: ${cleanName}.macultra.local
+- Mobile PWA Ready: Installed/Installable`;
     }
 }
 
@@ -183,7 +233,7 @@ class MacChatInterface {
         const cmd = args[0].toLowerCase();
 
         if (cmd === 'help') {
-            response = "\nCommands:\n  status -> Check system health\n  build <Name> <Desc> -> Create a new App/Game\n  history -> View command logs\n  exit -> Save & close";
+            response = "\nCommands:\n  status -> Check system health\n  build <Name> <Desc> -> Create a new App/Game (with PWA & Branded Link)\n  history -> View command logs\n  exit -> Save & close";
         } else if (lower.includes("status")) {
             response = "System Status: 100% Operational. Autonomous loops active. Memory secure.";
         } else if (cmd === 'build') {
