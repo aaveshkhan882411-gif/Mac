@@ -1,39 +1,24 @@
-const http = require('http');
-
-class MacWebhookManager {
-    constructor(port = 8080) {
-        this.port = port;
-        this.secrets = {
-            paypalClientId: process.env.PAYPAL_CLIENT_ID || "",
-            paypalSecret: process.env.PAYPAL_SECRET || ""
-        };
+class MacAuthManager {
+    constructor() {
+        this.authorizedUsers = ["Aavesh"]; // अधिकृत यूज़र्स की लिस्ट
+        this.tokenRegistry = new Map();
     }
 
-    setSecret(key, value) {
-        this.secrets[key] = value;
-        console.log(`[SECURITY]: Secret ${key} securely updated.`);
+    verifyUser(username) {
+        if (this.authorizedUsers.includes(username)) {
+            const token = "MAC-AUTH-" + Math.random().toString(36.substring(2, 15));
+            this.tokenRegistry.set(username, token);
+            console.log(`[AUTH]: User '${username}' authenticated successfully.`);
+            return { status: "success", token: token };
+        } else {
+            console.log(`[AUTH WARNING]: Unauthorized access attempt by '${username}'.`);
+            return { status: "unauthorized", token: null };
+        }
     }
 
-    startListener() {
-        const server = http.createServer((req, res) => {
-            if (req.method === 'POST' && req.url === '/webhook/paypal') {
-                let body = '';
-                req.on('data', chunk => { body += chunk; });
-                req.on('end', () => {
-                    console.log(`[WEBHOOK RECEIVED]: Payment event captured!`, JSON.parse(body || '{}'));
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: "success", message: "Payment processed by MacUltra" }));
-                });
-            } else {
-                res.writeHead(404, { 'Content-Type': 'text/plain' });
-                res.end('MacUltra Secure Endpoint Active');
-            }
-        });
-
-        server.listen(this.port, () => {
-            console.log(`[MAC WEBHOOK]: Secure payment listener running on port ${this.port}`);
-        });
+    validateToken(username, token) {
+        return this.tokenRegistry.has(username) && this.tokenRegistry.get(username) === token;
     }
 }
 
-module.exports = MacWebhookManager;
+module.exports = MacAuthManager;
